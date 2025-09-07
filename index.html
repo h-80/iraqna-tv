@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>البث المباشر</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            height: 100vh;
+        }
+        #videoPlayer {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+
+<video id="videoPlayer" autoplay muted playsinline controls></video>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // إعداد Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyA91unS_HwY1Byu_mePVf7LYg0TeZSEVjM",
+        authDomain: "iraqna-tv-3d268.firebaseapp.com",
+        databaseURL: "https://iraqna-tv-3d268-default-rtdb.firebaseio.com",
+        projectId: "iraqna-tv-3d268",
+        storageBucket: "iraqna-tv-3d268.firebasestorage.app",
+        messagingSenderId: "131227919663",
+        appId: "1:131227919663:web:a3692e189b9a9d30b5edda",
+        measurementId: "G-VG07FDTPZ0"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    // وضع ملء الشاشة تلقائياً
+    function enterFullscreen() {
+        if (document.fullscreenElement) return;
+        
+        videoPlayer.requestFullscreen().catch(err => {
+            console.log('محاولة ملء الشاشة فشلت:', err);
+        });
+    }
+
+    // تشغيل الفيديو
+    function playVideo(url) {
+        videoPlayer.src = url;
+        videoPlayer.load();
+        
+        videoPlayer.onloadeddata = function() {
+            videoPlayer.play().then(() => {
+                enterFullscreen();
+            }).catch(err => {
+                console.log('التشغيل التلقائي فشل:', err);
+                videoPlayer.muted = true;
+                videoPlayer.play().then(enterFullscreen);
+            });
+        };
+    }
+
+    // مراقبة التغييرات في قاعدة البيانات
+    db.ref('videos').on('value', function(snapshot) {
+        const videos = snapshot.val();
+        if (!videos) return;
+
+        const videoKeys = Object.keys(videos);
+        if (videoKeys.length === 0) return;
+
+        const firstVideoKey = videoKeys[0];
+        const videoUrl = videos[firstVideoKey].url;
+        
+        playVideo(videoUrl);
+        
+        // حذف الفيديو بعد تشغيله
+        db.ref('videos/' + firstVideoKey).remove();
+    });
+
+    // إعادة المحاولة عند انتهاء الفيديو أو حدوث خطأ
+    videoPlayer.onended = function() {
+        db.ref('videos').once('value').then(function(snapshot) {
+            const videos = snapshot.val();
+            if (videos) {
+                const videoKeys = Object.keys(videos);
+                if (videoKeys.length > 0) {
+                    const videoUrl = videos[videoKeys[0]].url;
+                    playVideo(videoUrl);
+                }
+            }
+        });
+    };
+
+    videoPlayer.onerror = function() {
+        setTimeout(() => {
+            db.ref('videos').once('value').then(function(snapshot) {
+                const videos = snapshot.val();
+                if (videos) {
+                    const videoKeys = Object.keys(videos);
+                    if (videoKeys.length > 0) {
+                        const videoUrl = videos[videoKeys[0]].url;
+                        playVideo(videoUrl);
+                    }
+                }
+            });
+        }, 3000);
+    };
+
+    // تفعيل ملء الشاشة عند النقر
+    videoPlayer.addEventListener('click', function() {
+        enterFullscreen();
+    });
+});
+</script>
+</body>
+</html>
